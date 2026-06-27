@@ -1,0 +1,142 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ * @var \ContributeEnhancements\View\Helper\ContributionProposalDiff $diffHelper
+ * @var bool $editRight
+ * @var string $term
+ * @var string $process
+ * @var bool $isValidated
+ * @var bool $contributionValidated
+ * @var bool $isApprovedRemoval
+ * @var bool $isRestoredRemoval
+ * @var int|null $key
+ * @var int|null $valueIndex
+ *
+ * @var \Laminas\View\Helper\EscapeHtml $escape
+ * @var \Laminas\I18n\View\Helper\Translate $translate
+ * @var \Laminas\View\Helper\EscapeHtmlAttr $escapeAttr
+ */
+
+if (!$contribution->isPatch()) {
+    return;
+}
+
+$translate = $this->plugin('translate');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$escape = $this->plugin('escapeHtml');
+$proposalKey = $key;
+$resolvedValueIndex = $diffHelper->resolveValueIndex($contribution, $term, $proposalKey, $valueIndex);
+$isApprovedRemoval = !empty($isApprovedRemoval);
+$isRestoredRemoval = !empty($isRestoredRemoval)
+    || $diffHelper->isRestoredRemoval($contribution, $term, $proposalKey, $resolvedValueIndex);
+$revisionStatus = $proposalKey !== null ? $diffHelper->revisionStatus($contribution, $term, $proposalKey) : null;
+$isRevisionProcess = in_array($process, ['update', 'add', 'append'], true);
+$revisionDecided = $proposalKey !== null && $revisionStatus !== null;
+$contributionValidated = !empty($contributionValidated) || $contribution->isValidated() === true;
+$showLanguageField = !empty($isLiteral) && !$contributionValidated && $editRight && $proposalKey !== null && $isRevisionProcess;
+?>
+<div class="contribute-enhancements-value-actions">
+<?php if ($showLanguageField): ?>
+    <?= $this->partial('contribute-enhancements/admin/contribution-revision-language', [
+        'contribution' => $contribution,
+        'diffHelper' => $diffHelper,
+        'term' => $term,
+        'proposalKey' => $proposalKey,
+        'proposedLanguage' => $proposedLanguage ?? null,
+        'propertyLabel' => $propertyLabel ?? $term,
+        'showSaveButton' => $revisionDecided && $revisionStatus === 'accepted',
+    ]) ?>
+<?php endif; ?>
+<?php if ($contributionValidated): ?>
+    <p class="contribute-enhancements-review-locked"><?= $escape($translate('This contribution is validated. Change the validation status to Pending review to revise per-value decisions.')) ?></p>
+<?php elseif ($isApprovedRemoval): ?>
+    <span class="no-action o-icon-validated-value" aria-label="<?= $escapeAttr($translate('Validated')) ?>"></span>
+    <p class="contribute-enhancements-removal-approved"><?= $escape($translate('Removal decision recorded. Upon validation of this contribution, this value will be removed from the item metadata. Before final validation, you may review and change this decision.')) ?></p>
+    <?php if ($editRight): ?>
+    <button type="button"
+        class="single-action restore-value contribute-enhancements-action-button"
+        data-restore-value-url="<?= $escapeAttr($diffHelper->restoreValueUrl($contribution, $term, $proposalKey, $resolvedValueIndex)) ?>"
+        data-status="restore-value"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Review removal decision')) ?>"
+        title="<?= $escapeAttr($translate('Review removal decision')) ?>">
+        <?= $translate('Review removal decision') ?>
+    </button>
+    <?php endif; ?>
+<?php elseif ($isRestoredRemoval): ?>
+    <span class="no-action o-icon-validated-value" aria-label="<?= $escapeAttr($translate('Validated')) ?>"></span>
+    <p class="contribute-enhancements-revision-status contribute-enhancements-revision-rejected"><?= $escape($translate('Removal rejected — the original value is kept. Upon validation of this contribution, the item metadata will not be changed. Before final validation, you may review this decision.')) ?></p>
+    <?php if ($editRight): ?>
+    <button type="button"
+        class="single-action repropose-removal contribute-enhancements-action-button"
+        data-repropose-removal-url="<?= $escapeAttr($diffHelper->reproposeRemovalUrl($contribution, $term, $proposalKey, $resolvedValueIndex)) ?>"
+        data-status="repropose-removal"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Review removal decision')) ?>"
+        title="<?= $escapeAttr($translate('Review removal decision')) ?>">
+        <?= $translate('Review removal decision') ?>
+    </button>
+    <?php endif; ?>
+<?php elseif ($isRevisionProcess && $revisionDecided && $editRight): ?>
+    <?php if ($revisionStatus === 'rejected'): ?>
+    <p class="contribute-enhancements-revision-status contribute-enhancements-revision-rejected"><?= $escape($translate('Metadata revision rejected. The item metadata will not be changed. Before final validation, you may review this decision.')) ?></p>
+    <?php else: ?>
+    <span class="no-action o-icon-validated-value" aria-label="<?= $escapeAttr($translate('Validated')) ?>"></span>
+    <p class="contribute-enhancements-revision-status contribute-enhancements-revision-accepted"><?= $escape($translate('Metadata revision accepted. Upon validation of this contribution, the change will be reflected in the item metadata. Before final validation, you may review this decision.')) ?></p>
+    <?php endif; ?>
+    <button type="button"
+        class="single-action review-revision contribute-enhancements-action-button"
+        data-review-revision-url="<?= $escapeAttr($diffHelper->reviewRevisionUrl($contribution, $term, $proposalKey)) ?>"
+        data-status="review-revision"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Review metadata revision')) ?>"
+        title="<?= $escapeAttr($translate('Review metadata revision')) ?>">
+        <?= $translate('Review metadata revision') ?>
+    </button>
+<?php elseif ($isRevisionProcess && $editRight && $proposalKey !== null): ?>
+    <button type="button"
+        class="single-action accept-revision contribute-enhancements-action-button"
+        data-accept-revision-url="<?= $escapeAttr($diffHelper->acceptRevisionUrl($contribution, $term, $proposalKey)) ?>"
+        data-status="accept-revision"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($diffHelper->validateActionLabel($process)) ?>"
+        title="<?= $escapeAttr($diffHelper->validateActionLabel($process)) ?>">
+        <?= $escape($diffHelper->validateActionLabel($process)) ?>
+    </button>
+    <button type="button"
+        class="single-action reject-revision contribute-enhancements-action-button contribute-enhancements-reject-revision"
+        data-reject-revision-url="<?= $escapeAttr($diffHelper->rejectRevisionUrl($contribution, $term, $proposalKey)) ?>"
+        data-status="reject-revision"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($diffHelper->rejectActionLabel($process)) ?>"
+        title="<?= $escapeAttr($diffHelper->rejectActionLabel($process)) ?>">
+        <?= $escape($diffHelper->rejectActionLabel($process)) ?>
+    </button>
+<?php elseif ($isValidated && !$isRevisionProcess): ?>
+    <span class="no-action o-icon-validated-value" aria-label="<?= $escapeAttr($translate('Validated')) ?>"></span>
+<?php elseif ($process === 'keep'): ?>
+    <span class="no-action o-icon-not-validable-value" aria-label="<?= $escapeAttr($translate('Not validable')) ?>"></span>
+<?php elseif (!$editRight): ?>
+    <span class="no-action o-icon-validate-value no-right" aria-label="<?= $escapeAttr($translate('No right to write')) ?>"></span>
+<?php elseif ($process === 'remove'): ?>
+    <button type="button"
+        class="single-action restore-value contribute-enhancements-action-button"
+        data-restore-value-url="<?= $escapeAttr($diffHelper->restoreValueUrl($contribution, $term, $proposalKey, $resolvedValueIndex)) ?>"
+        data-status="restore-value"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Reject deletion and keep this value')) ?>"
+        title="<?= $escapeAttr($translate('Reject deletion and keep this value')) ?>">
+        <?= $translate('Restore value') ?>
+    </button>
+    <button type="button"
+        class="single-action approve-removal contribute-enhancements-action-button contribute-enhancements-approve-removal"
+        data-approve-removal-url="<?= $escapeAttr($diffHelper->approveRemovalUrl($contribution, $term, $proposalKey, $resolvedValueIndex)) ?>"
+        data-status="approve-removal"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Approve removal of this value')) ?>"
+        title="<?= $escapeAttr($translate('Approve removal of this value')) ?>">
+        <?= $translate('Approve removal') ?>
+    </button>
+<?php endif; ?>
+</div>

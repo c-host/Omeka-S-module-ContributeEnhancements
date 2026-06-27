@@ -1,0 +1,64 @@
+<?php
+/**
+ * Optional language tag for a literal metadata revision.
+ *
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ * @var \ContributeEnhancements\View\Helper\ContributionProposalDiff $diffHelper
+ * @var string $term
+ * @var int $proposalKey
+ * @var string|null $proposedLanguage
+ * @var string $propertyLabel
+ * @var bool $showSaveButton
+ */
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+
+$statusClass = $proposedLanguage ? 'is-set' : 'is-empty';
+if ($proposedLanguage) {
+    $statusMessage = sprintf(
+        $translate('Language tag for %1$s: %2$s'),
+        $propertyLabel,
+        $proposedLanguage
+    );
+} else {
+    $statusMessage = sprintf(
+        $translate('No language tag set for %s.'),
+        $propertyLabel
+    );
+}
+?>
+<div class="contribute-enhancements-revision-language">
+    <label class="contribute-enhancements-revision-language__label" for="revision-language-<?= (int) $contribution->id() ?>-<?= $escapeAttr($term) ?>-<?= (int) $proposalKey ?>">
+        <?= $escape($translate('Language tag (optional)')) ?>
+    </label>
+    <input type="text"
+        class="contribute-enhancements-revision-language__input"
+        id="revision-language-<?= (int) $contribution->id() ?>-<?= $escapeAttr($term) ?>-<?= (int) $proposalKey ?>"
+        name="revision-language"
+        value="<?= $escapeAttr($proposedLanguage ?? '') ?>"
+        placeholder="<?= $escapeAttr($translate('en')) ?>"
+        maxlength="35"
+        autocomplete="off"
+        spellcheck="false"
+        inputmode="text"
+        aria-describedby="revision-language-status-<?= (int) $contribution->id() ?>-<?= $escapeAttr($term) ?>-<?= (int) $proposalKey ?>" />
+    <?php if (!empty($showSaveButton)): ?>
+    <button type="button"
+        class="single-action set-revision-language contribute-enhancements-action-button"
+        data-set-revision-language-url="<?= $escapeAttr($diffHelper->setRevisionLanguageUrl($contribution, $term, $proposalKey)) ?>"
+        data-status="revision-language"
+        data-spinner="true"
+        aria-label="<?= $escapeAttr($translate('Save language tag')) ?>"
+        title="<?= $escapeAttr($translate('Save language tag')) ?>">
+        <?= $escape($translate('Save language tag')) ?>
+    </button>
+    <?php endif; ?>
+    <p id="revision-language-status-<?= (int) $contribution->id() ?>-<?= $escapeAttr($term) ?>-<?= (int) $proposalKey ?>"
+        class="contribute-enhancements-revision-language__status <?= $statusClass ?>"
+        role="status"
+        aria-live="polite">
+        <?= $escape($statusMessage) ?>
+    </p>
+</div>

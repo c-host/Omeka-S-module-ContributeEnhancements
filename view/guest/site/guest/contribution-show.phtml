@@ -1,0 +1,148 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \Contribute\Api\Representation\ContributionRepresentation|null $contribution
+ * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation|null $resource
+ * @var string $space "default" or "guest"
+ */
+
+$plugins = $this->getHelperPluginManager();
+$url = $plugins->get('url');
+$partial = $plugins->get('partial');
+$setting = $plugins->get('setting');
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
+$siteSetting = $plugins->get('siteSetting');
+$escapeAttr = $plugins->get('escapeHtmlAttr');
+$i18n = $plugins->get('i18n');
+
+$siteSlug = $this->params()->fromRoute('site-slug');
+$asGuest = $space === 'guest';
+
+$filterLocale = (bool) $siteSetting('filter_locale_values');
+$siteLang = $plugins->get('lang')();
+$lang = $filterLocale ? $siteLang : null;
+
+$this->vars()->offsetSet('skipContributeCss', false);
+$partial('contribute-enhancements/guest/asset-include');
+
+$this->htmlElement('body')->appendAttribute('class', 'contribution resource show');
+
+$editUrl = $contribution->siteUrl($siteSlug, false, 'edit', $asGuest);
+$browseUrl = $asGuest
+    ? $url('site/guest/contribution', ['action' => 'browse'], true)
+    : $url('site/contribution', ['action' => 'browse'], true);
+$thumbnail = $resource ? $this->thumbnail($resource, 'square', ['alt' => $contribution->displayTitle()]) : '';
+$isArchived = $this->contributionArchive()->isArchived($contribution->id());
+$canUpdate = $contribution->isUpdatable() && !$isArchived && $contribution->userIsAllowed('update');
+$canDelete = $this->contributionCanDelete($contribution);
+$isValidated = $contribution->isValidated();
+$itemUrl = $resource ? $resource->siteUrl($siteSlug, false, 'show') : null;
+$statusLabel = $this->contributionStatusLabel();
+?>
+
+<div class="contribute-resource contribute-show container contribution-show-page <?= $space && $space !== 'default' ? $space : '' ?>">
+
+    <p class="contribution-show__back">
+        <a href="<?= $escapeAttr($browseUrl) ?>"><?= $translate('← Back to contributions') ?></a>
+    </p>
+
+    <?= $this->pageTitle($contribution->displayTitle(null, $lang), 2) ?>
+
+    <div class="contribution-show__header">
+        <?php if ($thumbnail): ?>
+        <div class="contribution-show__thumbnail">
+            <?= $thumbnail ?>
+        </div>
+        <?php endif; ?>
+
+        <div class="contribution-show__summary">
+            <p class="contribution-show__meta">
+                <?= sprintf(
+                    $translate('Contribution #%d (%s)'),
+                    $contribution->id(),
+                    $i18n->dateFormat($contribution->created(), 'medium', 'medium')
+                ) ?>
+            </p>
+            <ul class="contribution-status contribute-enhancements-guest-status">
+                <li class="submitted"><?= $escape($contribution->isSubmitted() ? $translate('Submitted') : $translate('Draft')) ?></li>
+                <li class="undertaken"><?= $escape($statusLabel->guestUndertakingLabel($contribution)) ?></li>
+                <li class="validated"><?= $escape($statusLabel->guestValidationLabel($contribution)) ?></li>
+            </ul>
+            <?php if ($isValidated === true && !$isArchived): ?>
+            <p class="contribute-enhancements-edit-locked-notice contribute-enhancements-validated-notice">
+                <?= $escape($translate('Your proposed metadata revisions have been validated and approved. This contribution can no longer be edited.')) ?>
+                <?php if ($itemUrl): ?>
+                <?= ' ' . sprintf(
+                    $translate('To propose new metadata changes, visit the %s and submit a new metadata edit proposal.'),
+                    (string) $this->hyperlink($translate('item page'), $itemUrl)
+                ) ?>
+                <?php else: ?>
+                <?= ' ' . $escape($translate('To propose new metadata changes, visit the item page on the website and submit a new metadata edit proposal.')) ?>
+                <?php endif; ?>
+            </p>
+            <?php elseif ($contribution->isSubmitted() && $contribution->isUndertaken() && !$contribution->isUpdatable() && !$isArchived && $isValidated === null): ?>
+            <p class="contribute-enhancements-edit-locked-notice">
+                <?= $escape($translate('This contribution is under review and cannot be edited until the reviewer releases it or completes review.')) ?>
+            </p>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <p class="contribution-show__intro explanation">
+        <?= $translate('Review your submitted metadata. Each value is labeled Before (as it was when you submitted) and After (your proposed change).') ?>
+    </p>
+
+    <?php if ($isArchived): ?>
+    <div class="contribute-enhancements-archived-notice">
+        <p><?= $escape($translate('This contribution has been archived by a reviewer. It is read-only but remains available here for your records.')) ?></p>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($msgs = $this->messages()): ?>
+    <div class="messages">
+        <?= $msgs ?>
+    </div>
+    <?php endif; ?>
+
+    <?php $this->trigger('view.show.before'); ?>
+
+    <div class="contribution-show__values">
+        <?= $this->contributionAuditValues($contribution) ?>
+    </div>
+
+    <?= $this->partial('contribute-enhancements/guest/contribution-change-history', ['contribution' => $contribution]) ?>
+
+    <?php if ($canUpdate || $canDelete): ?>
+    <ul class="actions contribution-show__actions" data-message-remove-contribution="<?= $escapeAttr($translate('Are you sure to remove this contribution?')) ?>">
+        <?php if ($canUpdate): ?>
+        <li><a class="o-icon-edit button edit-button edit-contribution" href="<?= $escapeAttr($editUrl) ?>"><?= $escape($translate('Edit')) ?></a></li>
+        <?php endif; ?>
+        <?php
+        if ($canUpdate && !$contribution->isSubmitted()):
+            $contributeConfig = $setting('contribute_config') ?: [];
+            $templateId = $contribution->resourceTemplate() ? $contribution->resourceTemplate()->id() : null;
+            $acceptStep = ($templateId && isset($contributeConfig['contribute_accept_step'][$templateId])
+                ? $contributeConfig['contribute_accept_step'][$templateId] : null)
+                ?: $setting('contribute_accept_step');
+            $acceptation = ($templateId && isset($contributeConfig['contribute_message_accept'][$templateId])
+                ? $contributeConfig['contribute_message_accept'][$templateId] : null)
+                ?: $setting('contribute_message_accept');
+            if ($acceptation && $acceptStep === 'end'): ?>
+        <li class="warn-acceptation">
+            <input type="checkbox" required="required" name="accept_rights" id="accept_rights" value=""/>
+            <label for="accept_rights"><?= $acceptation ?></label>
+        </li>
+            <?php endif; ?>
+        <li><a class="o-icon-submit button submit-button submit-contribution" href="<?= $escapeAttr($contribution->siteUrl($siteSlug, false, 'submit', $asGuest)) ?>"><?= $escape($translate('Submit')) ?></a></li>
+        <?php endif; ?>
+        <?php if ($canDelete): ?>
+        <li><a class="o-icon-delete button delete-button remove-contribution" data-contribution-id="<?= $contribution->id() ?>" data-contribution-url="<?= $escapeAttr($contribution->siteUrl($siteSlug, false, 'delete', $asGuest)) ?>" data-redirect-url="<?= $escapeAttr($browseUrl) ?>" href="#"><?= $escape($translate('Delete')) ?></a></li>
+        <?php endif; ?>
+    </ul>
+    <?php endif; ?>
+
+    <?php $this->trigger('view.show.after'); ?>
+
+</div>

@@ -1,0 +1,286 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Form\ContributeForm $form
+ * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource
+ * @var \Contribute\Api\Representation\ContributionRepresentation[] $contributions
+ * @var \Contribute\Api\Representation\TokenRepresentation[] $unusedTokens
+ * @var string $siteSlug
+ */
+
+$plugins = $this->getHelperPluginManager();
+$api = $plugins->get('api');
+$setting = $plugins->get('setting');
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
+$hyperlink = $plugins->get('hyperlink');
+$escapeAttr = $plugins->get('escapeHtmlAttr');
+
+$contributeConfig = $setting('contribute_config') ?: [];
+$useToken = !empty($contributeConfig['use_token']);
+?>
+
+<div class="contributions">
+<?= $this->partial('contribute-enhancements/admin/workflow-notice') ?>
+    <?php $totalTokens = $api->search('contribution_tokens', ['resource_id' => $resource->id(), 'limit' => 0])->getTotalResults(); ?>
+    <?php if (empty($totalTokens)): ?>
+        <?php if ($useToken): ?>
+    <div class="no-resources no-tokens">
+        <p><?= $translate('There are no tokens for this resource or contribution mode doesn’t use token.') ?></p>
+    </div>
+        <?php endif; ?>
+    <?php else: ?>
+    <?php $totalExpiredTokens = $api
+        ->search(
+            'contribution_tokens',
+            ['resource_id' => $resource->id(), 'datetime' => [['field' => 'expire', 'type' => 'lt', 'value' => date('Y-m-d H:i:s')]], 'limit' => 0]
+        )
+        ->getTotalResults(); ?>
+    <div class="contribution-token">
+        <p><?= sprintf($translate('There are %d tokens for this resource (%d expired).'), $totalTokens, $totalExpiredTokens) ?></p>
+        <?php if (($totalTokens - $totalExpiredTokens) && $this->userIsAllowed('Contribute\Controller\Admin\Contribution', 'expire-tokens')): ?>
+        <?= $hyperlink($translate('Expire all tokens'), $this->url('admin/contribution/id', ['action' => 'expire-tokens', 'id' => $resource->id()]), ['class' => 'button']) ?>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+<?php if (empty($contributions)): ?>
+    <div class="no-resources no-contributions">
+        <p><?= $translate('There are no contributions for this resource.') ?></p>
+    </div>
+<?php else: ?>
+<?php
+$mapResourceAdapters = [
+    'item' => \Omeka\Api\Adapter\ItemAdapter::class,
+    'media' => \Omeka\Api\Adapter\ItemSetAdapter::class,
+    'item-set' => \Omeka\Api\Adapter\MediaAdapter::class,
+];
+$resourceName = $resource->getControllerName();
+$adapterName = $mapResourceAdapters[$resourceName];
+$batchEditRight = $this->userIsAllowed($adapterName, 'batch-update');
+$editRight = $resource->userIsAllowed('update');
+?>
+<?php foreach ($contributions as $contribution): ?>
+<?php
+$token = $contribution->token();
+$archiveHelper = $this->contributionArchive();
+$isArchived = $archiveHelper->isArchived($contribution->id());
+$diffHelper = $this->contributionProposalDiff();
+$contributionStatus = $contribution->isValidated() === null
+    ? 'undetermined'
+    : ($contribution->isValidated() ? 'validated' : 'not-validated');
+$contributionValidated = $contribution->isValidated() === true;
+$undertakingLocked = $contribution->isValidated() !== null;
+?>
+<div class="contribution<?= $isArchived ? ' contribute-enhancements-archived' : '' ?><?= $contributionValidated ? ' contribute-enhancements-validated' : '' ?>" data-contribution-id="<?= (int) $contribution->id() ?>" data-archived="<?= $isArchived ? '1' : '0' ?>" data-language-warnings-url="<?= $escapeAttr($diffHelper->languageWarningsUrl($contribution)) ?>">
+<?php
+$languageWarnings = (!$contributionValidated && !$isArchived) ? $diffHelper->missingLanguageWarnings($contribution) : [];
+if ($languageWarnings): ?>
+<div class="contribute-enhancements-language-notice message warning">
+    <p><?= $escape($translate('Some accepted metadata values do not have a language tag. Values without tags may not appear correctly when visitors filter the site by language. Language tags are optional—you may add them below before validating.')) ?></p>
+    <ul>
+    <?php foreach ($languageWarnings as $warning): ?>
+        <li><strong><?= $escape($translate($warning['label'])) ?>:</strong> <?= $escape($warning['value']) ?></li>
+    <?php endforeach; ?>
+    </ul>
+</div>
+<?php endif; ?>
+<?php if ($contributionValidated && !$isArchived): ?>
+<div class="contribute-enhancements-validated-notice message notice">
+    <p><?= $escape($translate('This contribution is validated. Accepted metadata changes are reflected in the item. Change the status to Pending review to revise per-value decisions.')) ?></p>
+</div>
+<?php endif; ?>
+<table class="tablesaw <?php if ($batchEditRight) echo 'batch-edit'; ?>" data-tablesaw-mode="stack">
+    <thead>
+        <tr>
+            <th>
+                <?= $translate('Contribution') ?>
+                <?php /*
+                <span class="contribution-id">#<?= $contribution->id() ?></span>
+                */ ?>
+                <?php if ($email = $contribution->email()): ?>
+                    <span class="contribution-email"><?= $hyperlink($email, 'mailto:' . $email) ?></span>
+                <?php endif; ?>
+
+                <span class="contribution-date"><?= $this->i18n()->dateFormat($contribution->created(), 'medium', 'medium') ?></span>
+
+                <?php // TODO Don't check "modified" when the modification is just a change of the flag. ?>
+                <?php if ($contribution->created() != $contribution->modified()): // Don't use !==. ?>
+                <span class="contribution-date-modified"><?= $translate('(modified)') ?></span>
+                <?php endif; ?>
+
+                <?php if ($token): ?>
+                <span> / </span>
+                <span class="contribution-token"><?= $hyperlink($token->token(), $token->siteUrl($siteSlug, true)) ?></span>
+                <?php endif; ?>
+
+                <?php if ($isArchived): ?>
+                <span class="contribute-enhancements-archived-badge"><?= $escape($translate('Archived')) ?></span>
+                <?php endif; ?>
+
+                <ul class="actions">
+                    <li>
+                        <button type="button"
+                            class="single-action contribute-enhancements-archive-toggle"
+                            data-url="<?= $escapeAttr($isArchived ? $archiveHelper->unarchiveUrl($contribution->id()) : $archiveHelper->archiveUrl($contribution->id())) ?>"
+                            data-archived="<?= $isArchived ? '1' : '0' ?>"
+                            data-spinner="true"
+                            aria-label="<?= $escapeAttr($isArchived ? $translate('Unarchive contribution') : $translate('Archive contribution')) ?>"
+                            title="<?= $escapeAttr($isArchived ? $translate('Unarchive contribution') : $translate('Archive contribution')) ?>">
+                            <span class="fas contribute-enhancements-icon-archive" aria-hidden="true"></span>
+                        </button>
+                    </li>
+                    <?php if (!$isArchived && $contribution->isPatch()): // Only patchs should be validated individually. ?>
+
+                    <?php if ($editRight): ?>
+                    <?php // TODO Check if all values are the same to change the default icon to "validated". ?>
+                    <li>
+                        <button type="button"
+                            class="single-action jsend-action validate"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('validate')) ?>"
+                            data-status="validate"
+                            data-spinner="true"
+                            aria-label="<?= $v = $escapeAttr($translate('Validate all values')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon-validate"></span></button>
+                    </li>
+                    <li>
+                        <button type="button"
+                            class="single-action jsend-action toggle undertaking-toggle"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('toggle-undertaking')) ?>"
+                            data-status="<?= $contribution->isUndertaken() ? 'undertaken' : 'not-undertaken' ?>"
+                            data-spinner="true"
+                            <?= $undertakingLocked ? 'disabled="disabled"' : '' ?>
+                            aria-label="<?= $v = $escapeAttr($contribution->isUndertaken() ? $translate('Undertaken') : $translate('Not undertaken')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon-<?= $contribution->isUndertaken() ? 'undertaken' : 'not-undertaken' ?>"></span></button>
+                    </li>
+                    <li>
+                        <label class="contribute-enhancements-status-label screen-reader-only" for="contribution-status-<?= (int) $contribution->id() ?>"><?= $escape($translate('Validation status')) ?></label>
+                        <select id="contribution-status-<?= (int) $contribution->id() ?>"
+                            class="contribute-enhancements-status-select"
+                            data-url="<?= $escapeAttr($diffHelper->setStatusUrl($contribution)) ?>"
+                            data-current-status="<?= $escapeAttr($contributionStatus) ?>"
+                            <?= $isArchived ? 'disabled="disabled"' : '' ?>>
+                            <option value="undetermined"<?= $contributionStatus === 'undetermined' ? ' selected' : '' ?>><?= $escape($translate('Pending review')) ?></option>
+                            <option value="validated"<?= $contributionStatus === 'validated' ? ' selected' : '' ?>><?= $escape($translate('Validated')) ?></option>
+                            <option value="not-validated"<?= $contributionStatus === 'not-validated' ? ' selected' : '' ?>><?= $escape($translate('Rejected')) ?></option>
+                        </select>
+                    </li>
+                    <li>
+                        <button type="button"
+                            class="single-action button-dialog-common send-message"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('send-message')) ?>"
+                            aria-label="<?= $v = $escapeAttr($translate('Send a message to the author')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon- fa-envelope"></span></button>
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if ($token && $token->isExpired()): ?>
+                    <li>
+                        <span class="no-action o-icon-expired-token" aria-label="<?= $escapeAttr($translate('Expired token')) ?>"></span>
+                    </li>
+                    <?php elseif ($token): ?>
+                    <li>
+                        <button type="button"
+                            class="single-action jsend-action expire-token"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('expire-token')) ?>"
+                            data-spinner="true"
+                            aria-label="<?= $v = $escapeAttr($translate('Expire token')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon-expire-token"></span></button>
+                    </li>
+                    <?php endif; ?>
+
+                    <?php elseif (!$isArchived): ?>
+
+                    <li>
+                        <button type="button"
+                            class="single-action jsend-action toggle undertaking-toggle"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('toggle-undertaking')) ?>"
+                            data-status="<?= $contribution->isUndertaken() ? 'undertaken' : 'not-undertaken' ?>"
+                            data-spinner="true"
+                            <?= $undertakingLocked ? 'disabled="disabled"' : '' ?>
+                            aria-label="<?= $v = $escapeAttr($contribution->isUndertaken() ? $translate('Undertaken') : $translate('Not undertaken')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon-<?= $contribution->isUndertaken() ? 'undertaken' : 'not-undertaken' ?>"></span></button>
+                    </li>
+                    <li>
+                        <label class="contribute-enhancements-status-label screen-reader-only" for="contribution-status-<?= (int) $contribution->id() ?>"><?= $escape($translate('Validation status')) ?></label>
+                        <select id="contribution-status-<?= (int) $contribution->id() ?>"
+                            class="contribute-enhancements-status-select"
+                            data-url="<?= $escapeAttr($diffHelper->setStatusUrl($contribution)) ?>"
+                            data-current-status="<?= $escapeAttr($contributionStatus) ?>"
+                            <?= $isArchived ? 'disabled="disabled"' : '' ?>>
+                            <option value="undetermined"<?= $contributionStatus === 'undetermined' ? ' selected' : '' ?>><?= $escape($translate('Pending review')) ?></option>
+                            <option value="validated"<?= $contributionStatus === 'validated' ? ' selected' : '' ?>><?= $escape($translate('Validated')) ?></option>
+                            <option value="not-validated"<?= $contributionStatus === 'not-validated' ? ' selected' : '' ?>><?= $escape($translate('Rejected')) ?></option>
+                        </select>
+                    </li>
+                    <li>
+                        <button type="button"
+                            class="single-action button-dialog-common send-message"
+                            data-url="<?= $escapeAttr($contribution->adminUrl('send-message')) ?>"
+                            aria-label="<?= $v = $escapeAttr($translate('Send a message to the author')) ?>"
+                            title="<?= $v ?>"><span class="fas o-icon- fa-envelope"></span></button>
+                    </li>
+
+                    <?php endif; ?>
+                </ul>
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="contribution-value">
+            <td>
+                <?php
+                $proposal = $contribution->proposalNormalizeForValidation();
+                $vars = $this->vars();
+                $varsBase = $vars->getArrayCopy();
+                $varsBase['api'] = $api;
+                $varsBase['escape'] = $escape;
+                $varsBase['translate'] = $translate;
+                $varsBase['hyperlink'] = $hyperlink;
+                $varsBase['escapeAttr'] = $escapeAttr;
+                $varsBase['contribution'] = $contribution;
+                $varsBase['editRight'] = $editRight && !$isArchived;
+                $varsBase['labelInfo'] = $setting('property_label_information');
+                $varsBase['values'] = $resource->values();
+                $varsBase['isSubProposal'] = false;
+                $varsBase['proposal'] = $proposal;
+                echo $this->partial('common/admin/contribute-list-part', $varsBase);
+                if (isset($proposal['media']) && count($proposal['media'])):
+                    // No upper div to simplify admin theme.
+                    ?>
+                    <div class="contribution-medias">
+                        <h4 class="contribution-medias-label"><?= $translate('Medias') ?></h4>
+                        <?php
+                        // TODO Currently, only new media are managed as sub-resource: contribution for new resource, not contribution for existing item with media at the same time.
+                        $varsBase['values'] = [];
+                        $varsBase['isSubProposal'] = true;
+                        $varsForLoop = [];
+                        foreach ($proposal['media'] ?? [] as $subProposal) {
+                            $varsBase['proposal'] = $subProposal;
+                            $varsForLoop[] = $varsBase;
+                        }
+                        echo $this->partialLoop('common/admin/contribute-list-part', $varsForLoop);
+                        ?>
+                    </div>
+                <?php endif; ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+</div>
+
+<?php endif; ?>
+
+<?php if ($unusedTokens): ?>
+<h4><?= $translate('Unused tokens') ?></h4>
+<?= $this->partial('common/admin/contribute-token-list', [
+    'resource' => $resource,
+    'tokens' => $unusedTokens,
+    'siteSlug' => $siteSlug,
+]) ?>
+<?php endif; ?>
+
+<?= $this->sendMessageDialog() ?>
+
+</div>

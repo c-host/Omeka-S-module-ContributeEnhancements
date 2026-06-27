@@ -1,0 +1,113 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ */
+
+if (!$contribution->isPatch()) {
+    return;
+}
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$api = $this->plugin('api');
+$auditValues = $this->contributionAuditValues();
+
+$rows = [];
+foreach ($auditValues->changeHistoryRows($contribution) as $auditRow) {
+    $term = $auditRow['term'];
+    $entry = $auditRow['entry'];
+    $rawEntry = $auditRow['raw_entry'];
+    $process = $auditRow['process'];
+
+    $property = $api->searchOne('properties', ['term' => $term])->getContent();
+    $label = $property ? $property->label() : $term;
+
+    $original = $entry['original'] ?? [];
+    $proposed = $entry['proposed'] ?? [];
+
+    if (array_key_exists('@uri', $original) || array_key_exists('@uri', $proposed)) {
+        $originalText = trim(($original['@label'] ?? '') . ': ' . ($original['@uri'] ?? ''));
+        $proposedText = trim(($proposed['@label'] ?? '') . ': ' . ($proposed['@uri'] ?? ''));
+    } elseif (array_key_exists('@resource', $original) || array_key_exists('@resource', $proposed)) {
+        $originalText = (string) ($original['@resource'] ?? '');
+        $proposedText = (string) ($proposed['@resource'] ?? '');
+    } else {
+        $originalText = (string) ($original['@value'] ?? '');
+        $proposedText = (string) ($proposed['@value'] ?? '');
+        if (!empty($original['@language'])) {
+            $originalText = $original['@language'] . ': ' . $originalText;
+        }
+        if (!empty($proposed['@language'])) {
+            $proposedText = $proposed['@language'] . ': ' . $proposedText;
+        }
+    }
+
+    $revisionStatus = $rawEntry[\ContributeEnhancements\Service\ProposalRevisionService::ENTRY_REVISION_STATUS] ?? null;
+    $reviewStatus = $revisionStatus;
+    if (!$reviewStatus && !empty($rawEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_APPROVED])) {
+        $reviewStatus = 'removal-approved';
+    }
+    if (!$reviewStatus && !empty($rawEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_RESTORED])) {
+        $reviewStatus = 'removal-rejected';
+    }
+
+    $rows[] = [
+        'label' => $label,
+        'process' => $process,
+        'original' => $originalText,
+        'proposed' => $proposedText,
+        'review_status' => $reviewStatus,
+    ];
+}
+
+if (!$rows) {
+    return;
+}
+?>
+<section class="contribute-enhancements-change-history">
+    <h3><?= $escape($translate('Your proposed changes')) ?></h3>
+    <p class="contribute-enhancements-change-history-intro"><?= $escape($translate('This is a record of metadata changes you submitted with this contribution.')) ?></p>
+    <table class="contribute-enhancements-change-history-table">
+        <thead>
+            <tr>
+                <th><?= $escape($translate('Property')) ?></th>
+                <th><?= $escape($translate('Change')) ?></th>
+                <th><?= $escape($translate('Your submission')) ?></th>
+                <th><?= $escape($translate('Review status')) ?></th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($rows as $row): ?>
+            <tr>
+                <td><?= $escape($translate($row['label'])) ?></td>
+                <td><?= $escape(match ($row['process']) {
+                    'update' => $translate('Update'),
+                    'add' => $translate('Addition'),
+                    'remove' => $translate('Removal'),
+                    'append' => $translate('Addition'),
+                    default => $translate($row['process']),
+                }) ?></td>
+                <td class="contribute-enhancements-change-values">
+                    <?php if ($row['process'] === 'remove'): ?>
+                    <span class="remove-value"><?= $escape($row['original']) ?></span>
+                    <?php elseif ($row['process'] === 'add' || $row['process'] === 'append'): ?>
+                    <span class="proposed-value"><?= $escape($row['proposed']) ?></span>
+                    <?php else: ?>
+                    <span class="original-value"><?= $escape($row['original']) ?></span>
+                    <span class="contribute-enhancements-change-arrow" aria-hidden="true">→</span>
+                    <span class="proposed-value"><?= $escape($row['proposed']) ?></span>
+                    <?php endif; ?>
+                </td>
+                <td><?= $escape(match ($row['review_status']) {
+                    'accepted' => $translate('Accepted'),
+                    'rejected' => $translate('Rejected'),
+                    'removal-approved' => $translate('Removal approved'),
+                    'removal-rejected' => $translate('Removal rejected'),
+                    default => $translate('Pending review'),
+                }) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</section>

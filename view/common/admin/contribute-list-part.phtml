@@ -1,0 +1,546 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Form\ContributeForm $form
+ * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource
+ * @var \Contribute\Api\Representation\ContributionRepresentation[] $contributions
+ * @var \Contribute\Api\Representation\TokenRepresentation[] $unusedTokens
+ * @var string $siteSlug
+ *
+ * For loop:
+ * @var \Omeka\View\Helper\Api $api
+ * @var \Laminas\View\Helper\EscapeHtml $escape
+ * @var \Laminas\I18n\View\Helper\Translate $translate
+ * @var \Omeka\View\Helper\Hyperlink $hyperlink
+ * @var \Laminas\View\Helper\EscapeHtmlAttr $escapeAttr
+ *
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ * @var bool $editRight
+ * @var string $labelInfo
+ * @var array $values
+ * @var bool $isSubProposal
+ * @var array $proposal
+ */
+
+/** @var \Omeka\Api\Representation\ResourceTemplateRepresentation $resourceTemplate */
+$resourceTemplate = $proposal['template'] ?? null;
+// Clean data for the special keys.
+unset($proposal['template'], $proposal['media']);
+
+$diffHelper = $this->contributionProposalDiff();
+$removalSummary = $diffHelper->removalSummary($contribution, $values, $proposal);
+$contributionAction = (string) $this->params()->fromQuery('contribution_action', '');
+if ($contributionAction === 'approved') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('Removal approved. Upon validation of this contribution, this value will be removed from the item metadata.'))
+        . '</div>';
+} elseif ($contributionAction === 'restored') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('The proposed removal was rejected and the original value is kept.'))
+        . '</div>';
+} elseif ($contributionAction === 'reproposed') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('You may review this removal decision again.'))
+        . '</div>';
+} elseif ($contributionAction === 'revision-accepted') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('The metadata revision was accepted.'))
+        . '</div>';
+} elseif ($contributionAction === 'revision-rejected') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('The metadata revision was rejected.'))
+        . '</div>';
+} elseif ($contributionAction === 'revision-review') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('You may review this metadata revision again.'))
+        . '</div>';
+} elseif ($contributionAction === 'revision-language') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('The language tag for this proposed value was saved.'))
+        . '</div>';
+} elseif ($contributionAction === 'removal-restored') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('The proposed removal was rejected and the original value is kept.'))
+        . '</div>';
+} elseif ($contributionAction === 'removal-review') {
+    echo '<div class="contribute-enhancements-success-notice">'
+        . $escape($translate('You may review this removal decision again.'))
+        . '</div>';
+}
+if ($removalSummary) {
+    echo '<div class="contribute-enhancements-removal-notice">'
+        . '<p>' . $escape($translate('This submission may remove existing values:')) . '</p><ul>';
+    foreach ($removalSummary as $item) {
+        echo '<li><strong>' . $escape($item['label']) . '</strong><ul class="contribute-enhancements-removal-values">';
+        foreach ($item['values'] as $value) {
+            echo '<li>' . $escape($value) . '</li>';
+        }
+        echo '</ul></li>';
+    }
+    echo '</ul></div>';
+}
+
+$analysis = $diffHelper->analyze($contribution);
+$extraTerms = [];
+foreach ($analysis as $term => $rows) {
+    if (isset($proposal[$term])) {
+        continue;
+    }
+    foreach ($rows as $row) {
+        if ($row['status'] === \ContributeEnhancements\Service\ProposalDiffService::STATUS_DROPPED) {
+            $extraTerms[$term] = true;
+            break;
+        }
+    }
+}
+$contributionValidated = $contribution->isValidated() === true;
+?>
+
+<?php if ($isSubProposal): ?>
+<div class="proposal-media">
+    <h4><?= sprintf($translate('Media %s'), $this->partialLoop()->getPartialCounter()) ?></h4>
+<?php endif; ?>
+
+<dl>
+    <div class="property">
+        <dt><?= $escape($translate('Resource template')) ?></dt>
+        <dd class="values">
+            <span class="resource-template"><?= $escape($resourceTemplate ? $resourceTemplate->label() : $translate('No resource template')) ?></span>
+        </dd>
+    </div>
+</dl>
+
+<dl>
+<?php foreach ($proposal as $term => $propositions):
+    if (isset($values[$term])) {
+        $propertyData = $values[$term];
+    } elseif ($term === 'file') {
+        $propertyData = [
+            'property' => null,
+            'alternate_label' => $translate('File'),
+            'alternate_comment' => null,
+            'values' => [],
+        ];
+    } else {
+        $property = $api->searchOne('properties', ['term' => $term])->getContent();
+        // In the case the property was removed after the contribute.
+        if (empty($property)) continue;
+        $propertyData = [
+            'property' => $property,
+            'alternate_label' => null,
+            'alternate_comment' => null,
+            'values' => [],
+        ];
+    }
+?>
+    <div class="property">
+        <dt>
+            <?= $propertyData['alternate_label'] ? $escape($propertyData['alternate_label']) : $escape($translate($propertyData['property']->label())) ?>
+            <?php if (!isset($propertyData['property'])):?>
+            <?php // Nothing to do (file). ?>
+            <?php elseif ('term' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->term()) ?>)</span>
+            <?php elseif ('vocab' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->vocabulary()->label()) ?>)</span>
+            <?php endif; ?>
+        </dt>
+        <div class="values">
+
+        <?php $seenPropositionFingerprints = []; ?>
+        <?php foreach ($propositions as $key => $proposition):
+            if (!$diffHelper->shouldRenderPropositionEntry(
+                $proposition['original'] ?? [],
+                $seenPropositionFingerprints,
+                $proposition['proposed'] ?? []
+            )) {
+                continue;
+            }
+            $process = $proposition['process'] ?? '';
+            $isValidated = !empty($proposition['validated']);
+            $isApprovedRemoval = $diffHelper->isApprovedRemoval($contribution, $term, (int) $key, null);
+            $proposalKey = $diffHelper->resolveProposalKey($contribution, $term, (int) $key, $proposition);
+            $rejectedValueClass = $diffHelper->rejectedValueClass($contribution, $term, $proposalKey, $process, $isApprovedRemoval);
+            $additionOutcome = $diffHelper->additionReviewOutcome($contribution, $term, $proposalKey);
+            $removalOutcome = $diffHelper->removalReviewOutcome($contribution, $isApprovedRemoval);
+            // TODO Manage all types.
+            if (array_key_exists('@uri', $proposition['original'])) {
+                $type = 'uri';
+            } elseif (array_key_exists('@resource', $proposition['original'])) {
+                $type = 'resource';
+            } else {
+                $type = 'literal';
+            }
+            switch ($type):
+            case 'resource':
+                $original = $proposition['original']['@resource'];
+                $proposed = $proposition['proposed']['@resource'];
+                $isValidated = $proposition['validated'];
+                $process = $proposition['process'];
+
+                try {
+                    /** @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $originalResource */
+                    $originalResource = $api->read('resources', ['id' => $original])->getContent();
+                } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                    $originalResource = null;
+                }
+                try {
+                    /** @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $proposedResource */
+                    $proposedResource = $api->read('resources', ['id' => $proposed])->getContent();
+                } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                    $proposedResource = null;
+                }
+
+                $class = ['value'];
+                if ($isValidated || $isApprovedRemoval) $class[] = 'validated-value';
+                if ($process === 'remove') $class[] = 'contribute-enhancements-removal-row';
+                if ($isApprovedRemoval) $class[] = 'contribute-enhancements-removal-approved-row';
+                ?>
+                <div<?= $process === 'remove' ? ' class="contribute-enhancements-removal-row' . ($isApprovedRemoval ? ' contribute-enhancements-removal-approved-row' : '') . '"' : '' ?>>
+                    <?php if ($process === 'remove'): ?>
+                    <dd class="<?= implode(' ', $class) ?> <?= $originalResource ? $originalResource->resourceName() : '' ?>">
+                    <span data-name="<?= $term . '[' . $key . '][@resource]' ?>" class="remove-value<?= $rejectedValueClass ?>"><?= $originalResource->linkPretty() ?></span>
+                    <?php if ($isApprovedRemoval): ?>
+                    <span class="contribute-enhancements-removal-approved-label"><?= $escape($removalOutcome === 'removed' ? $translate('(removed)') : $translate('(removal approved)')) ?></span>
+                        <?php else: ?>
+                        <span class="contribute-enhancements-removal-label"><?= $escape($translate('(proposed removal)')) ?></span>
+                        <?php endif; ?>
+                    </dd>
+                    <?php else: ?>
+                        <?php if ($original): ?>
+                    <dd class="<?= implode(' ', $class) ?> <?= $originalResource ? $originalResource->resourceName() : '' ?>">
+                        <span data-name="<?= $term . '[' . $key . '][@resource]' ?>" class="original-value"><?= $originalResource->linkPretty() ?></span>
+                    </dd>
+                        <?php endif; ?>
+                    <dd class="<?= implode(' ', $class) ?> <?= $proposedResource ? $proposedResource->resourceName() : '' ?>">
+                        <span data-name="<?= $term . '[' . $key . '][@resource]' ?>" class="<?= $process ?>-value<?= $rejectedValueClass ?>"><?= $proposedResource ? $proposedResource->linkPretty() : '' ?></span>
+                    </dd>
+                    <?php endif; ?>
+
+                    <?php if ($contribution->isPatch()): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => $process,
+                        'isValidated' => $isValidated,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => $isApprovedRemoval,
+                        'isRestoredRemoval' => $diffHelper->isRestoredRemoval($contribution, $term, (int) $key, null),
+                        'key' => $proposalKey,
+                        'valueIndex' => null,
+                    ]) ?>
+                    <?php endif; ?>
+                </div>
+                 <?php
+                break;
+
+            case 'uri':
+                $original_uri = $proposition['original']['@uri'];
+                $proposed_uri = $proposition['proposed']['@uri'];
+                $original_label = $proposition['original']['@label'];
+                $proposed_label = $proposition['proposed']['@label'];
+
+                $isValidated = $proposition['validated'];
+                $process = $proposition['process'];
+
+                $class = ['value'];
+                if ($isValidated || $isApprovedRemoval) $class[] = 'validated-value';
+                if ($process === 'remove') $class[] = 'contribute-enhancements-removal-row';
+                if ($isApprovedRemoval) $class[] = 'contribute-enhancements-removal-approved-row';
+                $language = $proposition['value'] ? $proposition['value']->lang() : null;
+                ?>
+                <dd class="<?= implode(' ', $class) ?>" lang="<?= $escapeAttr($language) ?>">
+                    <?php if ($language): ?>
+                    <span class="language"><?= $escape($language) ?></span>
+                    <?php endif; ?>
+
+                    <?php if ($process === 'remove'): ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="remove-value<?= $rejectedValueClass ?>"><?= $escape($original_label) ?></span><span>:</span>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="remove-value<?= $rejectedValueClass ?>"><?= $escape($original_uri) ?></span>
+                    <?php if ($isApprovedRemoval): ?>
+                    <span class="contribute-enhancements-removal-approved-label"><?= $escape($removalOutcome === 'removed' ? $translate('(removed)') : $translate('(removal approved)')) ?></span>
+                    <?php else: ?>
+                    <span class="contribute-enhancements-removal-label"><?= $escape($translate('(proposed removal)')) ?></span>
+                    <?php endif; ?>
+                    <?php else: ?>
+                        <?php if ($original_label): ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="original-value"><?= $escape($original_label) ?></span><span>:</span>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="original-value"><?= $escape($original_uri) ?></span>
+                    <br/>
+                        <?php endif; ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="<?= $process ?>-value<?= $rejectedValueClass ?>"><?= $escape($proposed_label) ?></span><span>:</span>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="<?= $process ?>-value<?= $rejectedValueClass ?>"><?= $escape($proposed_uri) ?></span>
+                    <?php endif; ?>
+
+                    <?php if ($contribution->isPatch()): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => $process,
+                        'isValidated' => $isValidated,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => $isApprovedRemoval,
+                        'isRestoredRemoval' => $diffHelper->isRestoredRemoval($contribution, $term, (int) $key, null),
+                        'key' => $proposalKey,
+                        'valueIndex' => null,
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+                <?php
+                break;
+
+            case 'literal':
+            default:
+                $original = $proposition['original']['@value'];
+                $proposed = $proposition['proposed']['@value'];
+                $isValidated = $proposition['validated'];
+                $process = $proposition['process'];
+                $rawEntry = $proposalKey !== null
+                    ? ($contribution->proposal()[$term][$proposalKey] ?? $contribution->proposal()[$term][(string) $proposalKey] ?? [])
+                    : ($contribution->proposal()[$term][$key] ?? []);
+
+                $class = ['value'];
+                if ($isValidated || $isApprovedRemoval) $class[] = 'validated-value';
+                if ($process === 'remove') $class[] = 'contribute-enhancements-removal-row';
+                if ($isApprovedRemoval) $class[] = 'contribute-enhancements-removal-approved-row';
+                $language = $diffHelper->proposedLanguageFromEntry(is_array($rawEntry) ? $rawEntry : []);
+                if (!$language && $proposition['value']) {
+                    $language = $proposition['value']->lang();
+                }
+                ?>
+                <dd class="<?= implode(' ', $class) ?>" lang="<?= $escapeAttr($language) ?>">
+                    <?php if ($language): ?>
+                    <span class="language"><?= $escape($language) ?></span>
+                    <?php endif; ?>
+
+                    <?php if ($process === 'remove'): ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="remove-value<?= $rejectedValueClass ?>"><?= $escape($original) ?></span>
+                    <?php if ($isApprovedRemoval): ?>
+                    <span class="contribute-enhancements-removal-approved-label"><?= $escape($removalOutcome === 'removed' ? $translate('(removed)') : $translate('(removal approved)')) ?></span>
+                    <?php else: ?>
+                    <span class="contribute-enhancements-removal-label"><?= $escape($translate('(proposed removal)')) ?></span>
+                    <?php endif; ?>
+                    <?php elseif ($process === 'append'): ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="append-value<?= $rejectedValueClass ?>"><?= $escape($proposed) ?></span>
+                    <span class="contribute-enhancements-addition-label"><?= $escape(match ($additionOutcome) {
+                        'accepted' => $translate('(accepted addition)'),
+                        'rejected' => $translate('(rejected addition)'),
+                        default => $translate('(proposed addition)'),
+                    }) ?></span>
+                    <?php else: ?>
+                        <?php if ($original): ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="original-value"><?= $escape($original) ?></span>
+                    <br/>
+                        <?php endif; ?>
+                    <span data-name="<?= $term . '[' . $key . '][@value]' ?>" class="<?= $process ?>-value<?= $rejectedValueClass ?>"><?= $escape($proposed) ?></span>
+                    <?php endif; ?>
+
+                    <?php if ($contribution->isPatch()): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => $process,
+                        'isValidated' => $isValidated,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => $isApprovedRemoval,
+                        'isRestoredRemoval' => $diffHelper->isRestoredRemoval($contribution, $term, (int) $key, null),
+                        'key' => $proposalKey,
+                        'valueIndex' => null,
+                        'isLiteral' => true,
+                        'proposedLanguage' => $diffHelper->proposedLanguageFromEntry(is_array($rawEntry) ? $rawEntry : []),
+                        'propertyLabel' => $propertyData['alternate_label']
+                            ? (string) $propertyData['alternate_label']
+                            : (string) $translate($propertyData['property']->label()),
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+                 <?php
+                break;
+            endswitch;
+        endforeach;
+
+        foreach ($diffHelper->approvedRemovalDisplayRows($contribution, $term, array_keys($propositions)) as $approvedRow):
+            $approvedKey = $approvedRow['key'];
+            $approvedEntry = $approvedRow['entry'];
+            $approvedOriginal = $approvedEntry['original'] ?? [];
+            $approvedLanguage = $approvedOriginal['@language'] ?? null;
+            $approvedValueIndex = isset($approvedEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_VALUE_INDEX])
+                ? (int) $approvedEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_VALUE_INDEX]
+                : null;
+            $approvedRejectedClass = $contributionValidated ? ' contribute-enhancements-rejected-value' : '';
+            ?>
+                <dd class="value validated-value contribute-enhancements-removal-row contribute-enhancements-removal-approved-row" lang="<?= $escapeAttr($approvedLanguage) ?>">
+                    <?php if ($approvedLanguage): ?>
+                    <span class="language"><?= $escape($approvedLanguage) ?></span>
+                    <?php endif; ?>
+                    <span class="remove-value<?= $approvedRejectedClass ?>"><?= $escape($diffHelper->formatApprovedOriginal($approvedOriginal)) ?></span>
+                    <span class="contribute-enhancements-removal-approved-label"><?= $escape($contributionValidated ? $translate('(removed)') : $translate('(removal approved)')) ?></span>
+                    <?php if ($contribution->isPatch()): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => 'remove',
+                        'isValidated' => false,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => true,
+                        'isRestoredRemoval' => false,
+                        'key' => is_numeric($approvedKey) ? (int) $approvedKey : null,
+                        'valueIndex' => $approvedValueIndex,
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+            <?php
+        endforeach;
+
+        foreach ($diffHelper->restoredRemovalDisplayRows($contribution, $term, array_keys($propositions)) as $restoredRow):
+            $restoredKey = $restoredRow['key'];
+            $restoredEntry = $restoredRow['entry'];
+            $restoredOriginal = $restoredEntry['original'] ?? [];
+            $restoredLanguage = $restoredOriginal['@language'] ?? null;
+            $restoredValueIndex = isset($restoredEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_VALUE_INDEX])
+                ? (int) $restoredEntry[\ContributeEnhancements\Service\ProposalRemovalApprovalService::ENTRY_VALUE_INDEX]
+                : null;
+            ?>
+                <dd class="value validated-value contribute-enhancements-removal-row contribute-enhancements-removal-restored-row" lang="<?= $escapeAttr($restoredLanguage) ?>">
+                    <?php if ($restoredLanguage): ?>
+                    <span class="language"><?= $escape($restoredLanguage) ?></span>
+                    <?php endif; ?>
+                    <span class="remove-value"><?= $escape($diffHelper->formatApprovedOriginal($restoredOriginal)) ?></span>
+                    <span class="contribute-enhancements-removal-restored-label"><?= $escape($translate('(removal rejected)')) ?></span>
+                    <?php if ($contribution->isPatch()): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => 'remove',
+                        'isValidated' => false,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => false,
+                        'isRestoredRemoval' => true,
+                        'key' => is_numeric($restoredKey) ? (int) $restoredKey : null,
+                        'valueIndex' => $restoredValueIndex,
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+            <?php
+        endforeach;
+
+        foreach ($diffHelper->droppedRowsForTerm($contribution, $term) as $droppedRow):
+            $droppedValue = $droppedRow['value'];
+            if (!$droppedValue) {
+                continue;
+            }
+            $valueIndex = $droppedRow['value_index'];
+            $language = $droppedValue->lang();
+            ?>
+                <dd class="value contribute-enhancements-dropped-value contribute-enhancements-removal-row" lang="<?= $escapeAttr($language) ?>">
+                    <?php if ($language): ?>
+                    <span class="language"><?= $escape($language) ?></span>
+                    <?php endif; ?>
+                    <?php if ($droppedValue->valueResource()): ?>
+                    <span class="remove-value"><?= $droppedValue->valueResource()->linkPretty() ?></span>
+                    <?php else: ?>
+                    <span class="remove-value"><?= $escape($diffHelper->formatValueLabel($droppedValue)) ?></span>
+                    <?php endif; ?>
+                    <span class="contribute-enhancements-removal-label"><?= $escape($translate('(proposed removal)')) ?></span>
+                    <?php if ($contribution->isPatch() && $editRight): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => 'remove',
+                        'isValidated' => false,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => false,
+                        'isRestoredRemoval' => $diffHelper->isRestoredRemoval($contribution, $term, null, (int) $valueIndex),
+                        'key' => null,
+                        'valueIndex' => (int) $valueIndex,
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+            <?php
+        endforeach;
+        ?>
+        </div>
+    </div>
+<?php endforeach; ?>
+
+<?php foreach (array_keys($extraTerms) as $term):
+    if (isset($values[$term])) {
+        $propertyData = $values[$term];
+    } else {
+        $property = $api->searchOne('properties', ['term' => $term])->getContent();
+        if (empty($property)) {
+            continue;
+        }
+        $propertyData = [
+            'property' => $property,
+            'alternate_label' => null,
+            'alternate_comment' => null,
+            'values' => [],
+        ];
+    }
+?>
+    <div class="property">
+        <dt>
+            <?= $propertyData['alternate_label'] ? $escape($propertyData['alternate_label']) : $escape($translate($propertyData['property']->label())) ?>
+            <?php if ('term' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->term()) ?>)</span>
+            <?php elseif ('vocab' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->vocabulary()->label()) ?>)</span>
+            <?php endif; ?>
+        </dt>
+        <div class="values">
+        <?php foreach ($diffHelper->droppedRowsForTerm($contribution, $term) as $droppedRow):
+            $droppedValue = $droppedRow['value'];
+            if (!$droppedValue) {
+                continue;
+            }
+            $valueIndex = $droppedRow['value_index'];
+            $language = $droppedValue->lang();
+            ?>
+                <dd class="value contribute-enhancements-dropped-value contribute-enhancements-removal-row" lang="<?= $escapeAttr($language) ?>">
+                    <?php if ($language): ?>
+                    <span class="language"><?= $escape($language) ?></span>
+                    <?php endif; ?>
+                    <?php if ($droppedValue->valueResource()): ?>
+                    <span class="remove-value"><?= $droppedValue->valueResource()->linkPretty() ?></span>
+                    <?php else: ?>
+                    <span class="remove-value"><?= $escape($diffHelper->formatValueLabel($droppedValue)) ?></span>
+                    <?php endif; ?>
+                    <span class="contribute-enhancements-removal-label"><?= $escape($translate('(proposed removal)')) ?></span>
+                    <?php if ($contribution->isPatch() && $editRight): ?>
+                    <?= $this->partial('contribute-enhancements/admin/contribution-value-actions', [
+                        'contribution' => $contribution,
+                        'diffHelper' => $diffHelper,
+                        'editRight' => $editRight,
+                        'term' => $term,
+                        'process' => 'remove',
+                        'isValidated' => false,
+                        'contributionValidated' => $contributionValidated,
+                        'isApprovedRemoval' => false,
+                        'isRestoredRemoval' => $diffHelper->isRestoredRemoval($contribution, $term, null, (int) $valueIndex),
+                        'key' => null,
+                        'valueIndex' => (int) $valueIndex,
+                    ]) ?>
+                    <?php endif; ?>
+                </dd>
+            <?php
+        endforeach; ?>
+        </div>
+    </div>
+<?php endforeach; ?>
+</dl>
+
+<?php if ($isSubProposal): ?>
+</div>
+<?php endif; ?>

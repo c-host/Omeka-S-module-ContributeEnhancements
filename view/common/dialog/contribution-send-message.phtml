@@ -1,0 +1,37 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Form\SendMessageForm $form
+ */
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$emailTemplates = $this->contributeEnhancementsEmailTemplates();
+
+$form->prepare();
+?>
+
+<dialog class="popup popup-dialog dialog-send-message dialog-contribute">
+    <div class="dialog-background">
+        <div class="dialog-panel">
+            <div class="dialog-header">
+                <button type="button" class="dialog-header-close-button" title="<?= $translate('Close') ?>" autofocus="autofocus">
+                    <span class="dialog-close">🗙</span>
+                </button>
+            </div>
+            <div class="dialog-contents">
+                <div class="field contribute-enhancements-email-template-field">
+                    <label for="contribute-enhancements-email-template"><?= $escape($translate('Message template')) ?></label>
+                    <select id="contribute-enhancements-email-template" class="contribute-enhancements-email-template">
+                        <option value=""><?= $escape($translate('Custom message')) ?></option>
+                        <?php foreach ($emailTemplates as $type => $label): ?>
+                        <option value="<?= $escapeAttr($type) ?>"><?= $escape($translate($label)) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?= $this->form($form) ?>
+            </div>
+        </div>
+    </div>
+</dialog>

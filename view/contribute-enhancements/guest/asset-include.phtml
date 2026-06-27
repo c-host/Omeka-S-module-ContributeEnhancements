@@ -1,0 +1,25 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var string $space "default" or "guest"
+ */
+
+$plugins = $this->getHelperPluginManager();
+$url = $plugins->get('url');
+$assetUrl = $plugins->get('assetUrl');
+
+$deleteRoute = $space === 'guest' ? 'site/guest/contribution-id' : 'site/contribution-id';
+$js = 'const siteBaseUrl = ' . json_encode(substr($url($deleteRoute, ['action' => 'delete', 'resource' => 'contribution', 'id' => 0], true), 0, -8), 320) . ';
+const confirmFormCsrf = ' . json_encode($site->getServiceLocator()->get('FormElementManager')->get(\Omeka\Form\ConfirmForm::class)->prepare()->get('confirmform_csrf')->getValue()) . ';';
+
+if (empty($this->vars()->offsetGet('skipContributeCss'))) {
+    $this->headLink()
+        ->appendStylesheet($assetUrl('css/contribute.css', 'Contribute'))
+        ->appendStylesheet($assetUrl('css/common-dialog.css', 'Common'));
+}
+
+$this->headScript()
+    ->appendFile($assetUrl('js/common-dialog.js', 'Common'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('js/contribute-enhancements-site.js', 'ContributeEnhancements'), 'text/javascript', ['defer' => 'defer'])
+    ->appendScript($js);

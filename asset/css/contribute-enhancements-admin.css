@@ -1,0 +1,407 @@
+.contribute-enhancements-language-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: #fff8e8;
+    border: 1px solid #d9a400;
+    border-left-width: 4px;
+    color: #5c3b00;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+}
+
+.contribute-enhancements-language-notice ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.contribute-enhancements-revision-language {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 0.35rem;
+}
+
+.contribute-enhancements-revision-language__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.contribute-enhancements-revision-language__input {
+    min-width: 6rem;
+    max-width: 8rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    font-size: 0.8125rem;
+}
+
+.contribute-enhancements-revision-language__status {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #555;
+}
+
+.contribute-enhancements-revision-language__status.is-set {
+    color: #1f6b3a;
+}
+
+.contribute-enhancements-revision-language__status.is-empty {
+    color: #666;
+    font-style: italic;
+}
+
+.contribute-enhancements-revision-language__status.is-updated,
+.contribute-enhancements-revision-language--confirmed .contribute-enhancements-revision-language__status.is-set {
+    font-weight: 600;
+}
+
+.contribute-enhancements-revision-language--confirmed {
+    background: #edf9f0;
+    border-radius: 4px;
+    padding: 0.35rem 0.5rem;
+}
+
+.contribute-enhancements-removal-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: #fff4e5;
+    border: 1px solid #e6a700;
+    border-left-width: 4px;
+    color: #5c3b00;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+}
+
+.contribute-enhancements-removal-notice > ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.contribute-enhancements-removal-notice > ul > li + li {
+    margin-top: 0.5rem;
+}
+
+.contribute-enhancements-removal-notice .contribute-enhancements-removal-values {
+    margin: 0.35rem 0 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+}
+
+.contribute-enhancements-removal-notice .contribute-enhancements-removal-values li + li {
+    margin-top: 0.2rem;
+}
+
+.contributions .remove-value,
+.contribution .remove-value {
+    font-weight: 600;
+}
+
+.contribute-enhancements-addition-label,
+.contribution .contribute-enhancements-addition-label {
+    margin-left: 0.35rem;
+    color: #1a5e8a;
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.contribution .append-value {
+    font-weight: 600;
+}
+.contribution .contribute-enhancements-removal-label {
+    margin-left: 0.35rem;
+    color: #8a5a00;
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.contribution .contribute-enhancements-dropped-value,
+.contribution .contribute-enhancements-removal-row {
+    background: #fff8eb;
+}
+
+.contribution .contribute-enhancements-value-actions {
+    float: none;
+    clear: both;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+}
+
+.contribution .contribute-enhancements-action-button {
+    float: none;
+    display: inline-block;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    background: #fff;
+    color: #222;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    padding: 0.4rem 0.65rem;
+    cursor: pointer;
+    white-space: nowrap;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    box-shadow: none;
+    vertical-align: baseline;
+}
+
+.contribution .contribute-enhancements-action-button:hover,
+.contribution .contribute-enhancements-action-button:focus {
+    background: #f5f5f5;
+}
+
+.contribution .contribute-enhancements-action-button.restore-value,
+.contribution .contribute-enhancements-action-button[data-status="restore-value"] {
+    border-color: #0066cc;
+    color: #004f9e;
+    font-weight: 600;
+}
+
+.contribution .contribute-enhancements-approve-removal {
+    border-color: #b36b00;
+    color: #7a4a00;
+}
+
+.contribute-enhancements-success-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: #edf7ed;
+    border: 1px solid #2e7d32;
+    border-left-width: 4px;
+    color: #1b5e20;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+}
+
+.contribution .contribute-enhancements-removal-approved {
+    margin: 0.35rem 0 0;
+    color: #1b5e20;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.contribution .contribute-enhancements-removal-approved-label {
+    margin-left: 0.35rem;
+    color: #1b5e20;
+    font-size: 0.875rem;
+    font-style: italic;
+    font-weight: 600;
+}
+
+.contribution .contribute-enhancements-removal-approved-row {
+    background: #edf7ed;
+    border-left: 3px solid #2e7d32;
+}
+
+.contribution .contribute-enhancements-reject-revision {
+    border-color: #a33;
+    color: #8b1a1a;
+}
+
+.contribution .contribute-enhancements-revision-status {
+    margin: 0.35rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    flex-basis: 100%;
+}
+
+.contribution .contribute-enhancements-revision-accepted {
+    color: #1b5e20;
+    font-weight: 600;
+}
+
+.contribution .contribute-enhancements-revision-rejected {
+    color: #8b1a1a;
+    font-weight: 600;
+}
+
+.contribution .contribute-enhancements-action-button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.contribute-enhancements-status-select {
+    max-width: 11rem;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    background: #fff;
+    color: #222;
+    vertical-align: middle;
+}
+
+.contributions.browse table ul.actions .contribute-enhancements-status-item,
+.contribution ul.actions .contribute-enhancements-status-label + .contribute-enhancements-status-select {
+    display: inline-flex;
+    align-items: center;
+}
+
+.contributions.browse table ul.actions .contribute-enhancements-status-item {
+    margin: 0;
+    padding: 0;
+}
+
+.contributions.browse table ul.actions .contribute-enhancements-status-select {
+    max-width: 9.5rem;
+    margin-left: 0.15rem;
+}
+
+.contribution.contribute-enhancements-validated .contribute-enhancements-rejected-value,
+.contribution.contribute-enhancements-validated .append-value.contribute-enhancements-rejected-value,
+.contribution.contribute-enhancements-validated .update-value.contribute-enhancements-rejected-value,
+.contribution.contribute-enhancements-validated .add-value.contribute-enhancements-rejected-value,
+.contribution.contribute-enhancements-validated .remove-value.contribute-enhancements-rejected-value {
+    text-decoration: line-through;
+    color: #777;
+}
+
+.contribution.contribute-enhancements-validated .contribute-enhancements-addition-label {
+    color: #8b1a1a;
+    font-style: italic;
+}
+
+.contributions ul.actions .undertaking-toggle:disabled,
+.contribution ul.actions .undertaking-toggle:disabled {
+    opacity: 0.85;
+    cursor: default;
+}
+
+.contribution .contribute-enhancements-review-locked,
+.contribute-enhancements-validated-notice p {
+    margin: 0.35rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #5c3b00;
+    font-weight: 600;
+    flex-basis: 100%;
+}
+
+.contribute-enhancements-validated-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: #fff4e5;
+    border: 1px solid #e6a700;
+    border-left-width: 4px;
+}
+
+.contribution .contribute-enhancements-removal-restored-row {
+    background: #f7f7f7;
+    border-left: 3px solid #666;
+}
+
+.contribution .contribute-enhancements-removal-restored-label {
+    margin-left: 0.35rem;
+    color: #555;
+    font-size: 0.875rem;
+    font-style: italic;
+    font-weight: 600;
+}
+
+.contributions ul.actions .contribute-enhancements-status-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.contribute-enhancements-workflow-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: #eef5ff;
+    border: 1px solid #7da7d9;
+    border-left-width: 4px;
+}
+
+.contribute-enhancements-workflow-notice ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.contribute-enhancements-archive-filter {
+    margin: 0 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.contribute-enhancements-archive-filter .button.active {
+    font-weight: 700;
+}
+
+.contribute-enhancements-archived-badge,
+.contribution.contribute-enhancements-archived .contribute-enhancements-archived-badge,
+tr.contribution.contribute-enhancements-archived .title::after {
+    margin-left: 0.5rem;
+    color: #666;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.contribution.contribute-enhancements-archived,
+tr.contribution.contribute-enhancements-archived {
+    opacity: 0.92;
+}
+
+.contribute-enhancements-email-template-field {
+    margin-bottom: 1rem;
+}
+
+.contribute-enhancements-email-template-field select {
+    width: 100%;
+    max-width: 32rem;
+}
+
+.contribution .original-value,
+.contribution .proposed-value,
+.contribution .remove-value,
+.contribution .update-value,
+.contribution .keep-value,
+.contribution .contribute-enhancements-removal-approved,
+.contribution .contribute-enhancements-removal-notice {
+    white-space: pre-wrap;
+}
+
+.contribute-enhancements-archive-toggle {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font-size: inherit;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    box-shadow: none;
+}
+
+.contribute-enhancements-archive-toggle .contribute-enhancements-icon-archive::before {
+    content: "\f187";
+    font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+.contributions ul.actions .contribute-enhancements-archive-toggle,
+table ul.actions .contribute-enhancements-archive-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}

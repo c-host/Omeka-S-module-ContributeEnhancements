@@ -1,0 +1,25 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $space
+ */
+
+$translate = $this->plugin('translate');
+$url = $this->plugin('url');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$escape = $this->plugin('escapeHtml');
+
+$isArchivedView = $this->params()->fromQuery('contribute_enhancements_archived') === '1';
+$baseParams = $this->params()->fromQuery();
+unset($baseParams['contribute_enhancements_archived']);
+
+$activeUrl = $url('site/guest/contribution', ['action' => 'browse'], ['query' => $baseParams], true);
+$archivedParams = $baseParams;
+$archivedParams['contribute_enhancements_archived'] = '1';
+$archivedUrl = $url('site/guest/contribution', ['action' => 'browse'], ['query' => $archivedParams], true);
+?>
+<div class="contribute-enhancements-archive-filter contribute-enhancements-guest-archive-filter">
+    <span class="contribute-enhancements-archive-filter-label"><?= $escape($translate('Show')) ?></span>
+    <a href="<?= $escapeAttr($activeUrl) ?>" class="button<?= $isArchivedView ? '' : ' active' ?>"><?= $escape($translate('Active')) ?></a>
+    <a href="<?= $escapeAttr($archivedUrl) ?>" class="button<?= $isArchivedView ? ' active' : '' ?>"><?= $escape($translate('Archived')) ?></a>
+</div>

@@ -1,0 +1,68 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ * @var array $templateProperties
+ * @var array $values
+ * @var array $valuesMedias
+ * @var bool $auditDiff
+ */
+
+$plugins = $this->getHelperPluginManager();
+$url = $plugins->get('url');
+$api = $plugins->get('api');
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
+$escapeAttr = $plugins->get('escapeHtmlAttr');
+
+$isSiteRequest = $this->status()->isSiteRequest();
+if ($isSiteRequest) {
+    $siteSetting = $plugins->get('siteSetting');
+    $labelInfo = $siteSetting('property_label_information');
+    $showLocale = (bool) $siteSetting('show_locale_label', true);
+} else {
+    $setting = $plugins->get('setting');
+    $labelInfo = $setting('property_label_information');
+    $showLocale = true;
+    $site = $this->defaultSite() ?: $api->searchOne('sites')->getContent();
+}
+
+$baseUrlFiles = $site->getServiceLocator()->get('Config')['file_store']['local']['base_uri'] ?: rtrim($url('top'), '/') . '/files';
+
+$varsBase = [
+    'site' => $site,
+    'contribution' => $contribution,
+    'templateProperties' => $templateProperties,
+    'api' => $api,
+    'escape' => $escape,
+    'translate' => $translate,
+    'escapeAttr' => $escapeAttr,
+    'baseUrlFiles' => $baseUrlFiles,
+    'isSiteRequest' => $isSiteRequest,
+    'labelInfo' => $labelInfo,
+    'showLocale' => $showLocale,
+    'values' => $values,
+    'auditDiff' => $auditDiff ?? false,
+    'isSub' => false,
+    'indexValuesMedia' => null,
+];
+
+echo $this->partial('contribute-enhancements/guest/contribution-values-part', $varsBase);
+
+if (count($valuesMedias)): ?>
+    <div class="contribution-medias">
+        <h4 class="contribution-medias-label"><?= $isSiteRequest ? $translate('Medias') : $translate('Medias') ?></h4>
+        <?php
+        $varsBase['isSub'] = true;
+        $varsForLoop = [];
+        foreach ($valuesMedias ?? [] as $indexValuesMedia => $valuesMedia) {
+            $varsBase['values'] = $valuesMedia;
+            $varsBase['indexValuesMedia'] = $indexValuesMedia;
+            $varsForLoop[] = $varsBase;
+        }
+        echo $this->partialLoop('contribute-enhancements/guest/contribution-values-part', $varsForLoop);
+        ?>
+    </div>
+    <?php
+endif;

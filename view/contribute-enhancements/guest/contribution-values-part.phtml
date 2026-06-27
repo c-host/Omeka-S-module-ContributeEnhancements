@@ -1,0 +1,171 @@
+<?php
+/**
+ * Guest contribution values with removal-aware After labels.
+ *
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Contribute\Api\Representation\ContributionRepresentation $contribution
+ * @var array $values
+ * @var bool $isSub
+ * @var bool $auditDiff
+ */
+
+$diffHelper = $this->contributionProposalDiff();
+$auditDiff = $auditDiff ?? false;
+$analysis = $auditDiff
+    ? $this->contributionAuditValues()->analyze($contribution)
+    : $diffHelper->analyze($contribution);
+
+$hasContributionValue = function (array $data, string $valueBaseType): bool {
+    if ($valueBaseType === 'resource') {
+        return !empty($data['@resource']);
+    }
+    if ($valueBaseType === 'uri') {
+        return ($data['@uri'] ?? '') !== '' || ($data['@label'] ?? '') !== '';
+    }
+
+    return ($data['@value'] ?? '') !== '' && $data['@value'] !== null;
+};
+
+$renderContributionValue = function (
+    string $term,
+    string $valueBaseType,
+    array $valueData,
+    bool $proposed
+) use ($api, $escape, $translate, $escapeAttr, $baseUrlFiles, $hasContributionValue): string {
+    $key = $proposed ? 'proposed' : 'original';
+    $data = $valueData[$key] ?? [];
+
+    if (!$hasContributionValue($data, $valueBaseType)) {
+        return '<span class="contribution-value-empty">' . $escape($translate('(none)')) . '</span>';
+    }
+
+    if ($valueBaseType === 'uri') {
+        return $escape(($data['@uri'] ?? '') . (($data['@label'] ?? '') !== '' ? ' / ' . $data['@label'] : ''));
+    }
+    if ($valueBaseType === 'resource') {
+        $resourceId = $data['@resource'] ?? null;
+        try {
+            $res = $api->read('resources', ['id' => $resourceId])->getContent();
+
+            return $res->link($res->displayTitle());
+        } catch (\Throwable $e) {
+            return sprintf($translate('%s [unavailable]'), $resourceId);
+        }
+    }
+    if ($term === 'file' && $proposed) {
+        return isset($data['store'])
+            ? '<a href="' . $escapeAttr($baseUrlFiles . '/contribution/' . $data['store']) . '" download="' . $escapeAttr($data['@value'] ?? '') . '" target="_self">' . $escape($data['@value'] ?? '') . '</a>'
+            : sprintf('%s [missing file]', $escape($data['@value'] ?? ''));
+    }
+
+    return $escape((string) ($data['@value'] ?? ''));
+};
+
+$isDisplayable = function (array $contributionData, string $valueBaseType) use ($hasContributionValue): bool {
+    if (!empty($contributionData['empty'])) {
+        return $hasContributionValue($contributionData['original'] ?? [], $valueBaseType);
+    }
+
+    return true;
+};
+
+?>
+
+<?php if ($isSub): ?>
+<dl class="contribution-media">
+    <h4 class="contribution-media-label"><?= sprintf($isSiteRequest ? $translate('File #%s') : $translate('Media #%s'), $this->partialLoop()->getPartialCounter()) ?></h4>
+<?php else: ?>
+<dl class="contribution">
+<?php endif; ?>
+
+<?php foreach ($values as $term => $propertyData): ?>
+    <?php
+    if (empty($propertyData['contributions'])) {
+        continue;
+    }
+    $displayableContributions = array_filter(
+        $propertyData['contributions'],
+        function (array $contributionData) use ($isDisplayable): bool {
+            $valueBaseType = $contributionData['basetype'] ?? 'literal';
+
+            return $isDisplayable($contributionData, $valueBaseType);
+        }
+    );
+    if (!$displayableContributions) {
+        continue;
+    }
+    $termRowIndex = 0;
+    ?>
+    <div class="property">
+        <dt>
+            <?= $escape($propertyData['alternate_label'] ?: $translate($propertyData['property']->label())) ?>
+            <?php if (!isset($propertyData['property'])):?>
+            <?php elseif ('term' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->term()) ?>)</span>
+            <?php elseif ('vocab' === $labelInfo): ?>
+            <span class="field-term">(<?= $escape($propertyData['property']->vocabulary()->label()) ?>)</span>
+            <?php endif; ?>
+        </dt>
+        <?php foreach ($displayableContributions as $contributionData):
+            $valueType = $contributionData['type'];
+            $valueBaseType = $contributionData['basetype'];
+            $valueLang = $contributionData['lang'] ?? '';
+            $class = ['value'];
+            if ($valueBaseType === 'resource') {
+                $class[] = 'resource';
+                $class[] = substr($valueType, 0, 9) === 'resource:' ? substr($valueType, 9) : 'item';
+            } elseif ($valueBaseType === 'uri') {
+                $class[] = 'uri';
+            }
+            $isNew = !empty($contributionData['new']);
+            $isUnchanged = !empty($contributionData['empty']);
+            $proposedHasValue = $hasContributionValue($contributionData['proposed'] ?? [], $valueBaseType);
+            $diffStatus = $analysis[$term][$termRowIndex]['status'] ?? null;
+            $afterIsRemoval = in_array($diffStatus, [
+                \ContributeEnhancements\Service\ProposalDiffService::STATUS_DROPPED,
+                \ContributeEnhancements\Service\ProposalDiffService::STATUS_REMOVED,
+            ], true) || (
+                !$isNew
+                && !$proposedHasValue
+                && $hasContributionValue($contributionData['original'] ?? [], $valueBaseType)
+            );
+            $afterIsPlaceholder = ($isUnchanged && !$proposedHasValue) || $afterIsRemoval;
+            ++$termRowIndex;
+            ?>
+        <dd class="<?= implode(' ', $class) ?>" lang="<?= $escape($valueLang) ?>">
+            <?php if ($showLocale && $valueLang): ?>
+            <span class="language"><?= $valueLang ?></span>
+            <?php endif; ?>
+            <?php if ($isNew): ?>
+            <div class="contribution-value-compare">
+                <div class="contribution-value-row contribution-value-row--before">
+                    <span class="contribution-value-label"><?= $translate('Before') ?></span>
+                    <span class="value-content"><?= $renderContributionValue($term, $valueBaseType, $contributionData, false) ?></span>
+                </div>
+                <div class="contribution-value-row contribution-value-row--after">
+                    <span class="contribution-value-label"><?= $translate('After') ?></span>
+                    <span class="value-content"><?= $renderContributionValue($term, $valueBaseType, $contributionData, true) ?></span>
+                </div>
+            </div>
+            <?php else: ?>
+            <div class="contribution-value-compare">
+                <div class="contribution-value-row contribution-value-row--before">
+                    <span class="contribution-value-label"><?= $translate('Before') ?></span>
+                    <span class="value-content"><?= $renderContributionValue($term, $valueBaseType, $contributionData, false) ?></span>
+                </div>
+                <div class="contribution-value-row contribution-value-row--after<?= $afterIsPlaceholder ? ' contribution-value-row--unchanged' : '' ?><?= $afterIsRemoval ? ' contribution-value-row--removal' : '' ?>">
+                    <span class="contribution-value-label"><?= $translate('After') ?></span>
+                    <span class="value-content"><?php if ($afterIsPlaceholder): ?><span class="contribution-value-unchanged<?= $afterIsRemoval ? ' contribution-value-removal' : '' ?>"><?= $escape($diffHelper->afterLabel($diffStatus)) ?></span><?php else: ?><?= $renderContributionValue($term, $valueBaseType, $contributionData, true) ?><?php endif; ?></span>
+                </div>
+            </div>
+            <?php endif; ?>
+        </dd>
+        <?php endforeach; ?>
+    </div>
+<?php endforeach; ?>
+
+<?php if ($isSub): ?>
+</dl>
+<?php else: ?>
+</dl>
+<?php endif; ?>

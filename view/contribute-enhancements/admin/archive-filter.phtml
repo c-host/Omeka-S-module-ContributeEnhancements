@@ -1,0 +1,15 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$archived = (string) $this->params()->fromQuery('contribute_enhancements_archived', '0');
+$baseQuery = $this->params()->fromQuery();
+unset($baseQuery['contribute_enhancements_archived'], $baseQuery['page']);
+$activeQuery = $baseQuery + ['contribute_enhancements_archived' => '0'];
+$archivedQuery = $baseQuery + ['contribute_enhancements_archived' => '1'];
+?>
+<div class="contribute-enhancements-archive-filter">
+    <span class="label"><?= $escape($translate('Show')) ?></span>
+    <a class="button<?= $archived === '0' ? ' active' : '' ?>" href="<?= $escapeAttr($this->url(null, [], ['query' => $activeQuery], true)) ?>"><?= $escape($translate('Active')) ?></a>
+    <a class="button<?= $archived === '1' ? ' active' : '' ?>" href="<?= $escapeAttr($this->url(null, [], ['query' => $archivedQuery], true)) ?>"><?= $escape($translate('Archived')) ?></a>
+</div>

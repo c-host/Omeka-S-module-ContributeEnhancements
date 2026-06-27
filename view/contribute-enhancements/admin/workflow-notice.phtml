@@ -1,0 +1,15 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+?>
+<div class="contribute-enhancements-workflow-notice message notice">
+    <p><?= $escape($translate('Review workflow')) ?></p>
+    <ul>
+        <li><?= $escape($translate('Use the validation status menu to set Pending review, Validated, or Rejected. Accepted per-value decisions are written to the item only when you set the contribution to Validated.')) ?></li>
+        <li><?= $escape($translate('Undertaking is set automatically when you begin reviewing. While Pending review, you can toggle undertaking off to allow the contributor to edit again. Undertaking stays on when the contribution is Validated or Rejected.')) ?></li>
+        <li><?= $escape($translate('No email is sent automatically when you change status.')) ?></li>
+        <li><?= $escape($translate('Use Send message to notify contributors (Accepted, Rejected, Needs changes, or Added to Omeka).')) ?></li>
+        <li><?= $escape($translate('Archive contributions manually when review is complete. Archived records are kept for audit and are read-only.')) ?></li>
+        <li><?= $escape($translate('Internet Archive sync is separate. Contributors are not notified about Internet Archive.')) ?></li>
+    </ul>
+</div>

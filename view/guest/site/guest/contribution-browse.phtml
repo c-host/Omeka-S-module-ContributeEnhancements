@@ -1,0 +1,153 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \Omeka\Entity\User $user
+ * @var \Contribute\Api\Representation\ContributionRepresentation[] $contributions
+ * @var string $space "default" or "guest"
+ */
+
+$plugins = $this->getHelperPluginManager();
+$url = $plugins->get('url');
+$i18n = $plugins->get('i18n');
+$partial = $plugins->get('partial');
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
+$escapeAttr = $plugins->get('escapeHtmlAttr');
+$contributionLink = $plugins->get('contributionLink');
+$breadcrumbs = $plugins->has('breadcrumbs') ? $plugins->get('breadcrumbs') : null;
+$guestNavigation = $user && $plugins->has('guestNavigation') ? $plugins->get('guestNavigation')() : null;
+
+$hasGuestNav = $guestNavigation && $guestNavigation->getContainer()->count();
+
+$this->vars()->offsetSet('skipContributeCss', false);
+$partial('contribute-enhancements/guest/asset-include');
+$siteSlug = $this->params()->fromRoute('site-slug');
+
+$this->htmlElement('body')->appendAttribute('class', 'contribution resource browse');
+?>
+
+<?php if ($breadcrumbs && !$hasGuestNav): ?>
+<?= $breadcrumbs() ?>
+<?php endif; ?>
+
+<?php if ($hasGuestNav): ?>
+<nav class="navigation-guest">
+    <?= $guestNavigation->menu()->renderMenu() ?>
+</nav>
+<?php endif; ?>
+
+<?= $this->pageTitle($translate('Contributions'), 2) ?>
+
+<?= $this->partial('contribute-enhancements/guest/archive-filter') ?>
+
+<?php if (count($contributions)): ?>
+<p class="contribute-enhancements-guest-count"><?= sprintf($translate('%d contributions'), count($contributions)) ?></p>
+
+<?php $this->trigger('view.browse.before'); ?>
+<ul class="resource-list contribution-list contribute-enhancements-guest-list">
+    <?php foreach ($contributions as $contribution): ?>
+    <?php
+    $isArchived = $this->contributionArchive()->isArchived($contribution->id());
+    $resource = $contribution->resource();
+    $showUrl = $contribution->siteUrl($siteSlug, false, 'show', true);
+    $itemUrl = $resource ? $resource->siteUrl($siteSlug, false, 'show') : null;
+    $editUrl = $contribution->siteUrl($siteSlug, false, 'edit', true);
+    $canUpdate = $contribution->isUpdatable() && !$isArchived && $contribution->userIsAllowed('update');
+    $canDelete = $this->contributionCanDelete($contribution);
+    ?>
+    <li class="resource contribution contribute-enhancements-guest-card<?= $isArchived ? ' contribute-enhancements-archived' : '' ?>">
+        <div class="contribute-enhancements-guest-card__main">
+            <?php if ($resource): ?>
+            <div class="contribute-enhancements-guest-card__thumbnail">
+                <a class="contribute-enhancements-guest-card__item-link" href="<?= $escapeAttr($itemUrl) ?>">
+                    <?= $this->thumbnail($resource, 'square', ['alt' => $contribution->displayTitle()]) ?>
+                    <span class="contribute-enhancements-guest-card__item-label"><?= $escape($translate('View item')) ?></span>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <div class="contribute-enhancements-guest-card__body">
+                <p class="contribute-enhancements-guest-card__meta">
+                    <?= sprintf(
+                        $translate('Contribution #%d · %s'),
+                        $contribution->id(),
+                        $i18n->dateFormat($contribution->created(), 'medium', 'short')
+                    ) ?>
+                    <?php if ($isArchived): ?>
+                    <span class="contribute-enhancements-archived-badge"><?= $escape($translate('Archived')) ?></span>
+                    <?php endif; ?>
+                </p>
+
+                <h3 class="contribute-enhancements-guest-card__title">
+                    <a href="<?= $escapeAttr($showUrl) ?>">
+                        <span class="contribute-enhancements-guest-card__title-label"><?= $escape($translate('Change record')) ?>:</span>
+                        <?= $escape($contribution->displayTitle()) ?>
+                    </a>
+                </h3>
+
+                <ul class="contribute-enhancements-guest-status">
+                    <li class="contribute-enhancements-guest-status__item submitted">
+                        <?= $escape($contribution->isSubmitted() ? $translate('Submitted') : $translate('Draft')) ?>
+                    </li>
+                    <li class="contribute-enhancements-guest-status__item undertaken">
+                        <?= $escape($contribution->isUndertaken() ? $translate('Under review') : $translate('Not under review')) ?>
+                    </li>
+                    <li class="contribute-enhancements-guest-status__item validated contribute-enhancements-guest-status__item--<?= $contribution->isValidated() === null ? 'pending' : ($contribution->isValidated() ? 'accepted' : 'rejected') ?>">
+                        <?= $escape($this->contributionStatusLabel($contribution)) ?>
+                    </li>
+                </ul>
+
+                <?php if ($contribution->isSubmitted() && $contribution->isUndertaken() && !$contribution->isUpdatable() && !$isArchived): ?>
+                <p class="contribute-enhancements-edit-locked-notice">
+                    <?= $escape($translate('This contribution is under review and cannot be edited until the reviewer releases it or completes review.')) ?>
+                </p>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="contribute-enhancements-guest-card__footer"<?= ($canDelete || $canUpdate) ? ' data-message-remove-contribution="' . $escapeAttr($translate('Are you sure to remove this contribution?')) . '"' : '' ?>>
+            <a class="button contribute-enhancements-guest-card__view" href="<?= $escapeAttr($showUrl) ?>">
+                <?= $escape($translate('View change record')) ?>
+            </a>
+
+            <?php if ($canUpdate || $canDelete): ?>
+            <ul class="actions contribute-enhancements-guest-card__actions">
+                <?php if ($canUpdate): ?>
+                <li>
+                    <a class="o-icon-edit button edit-button edit-contribution contribute-enhancements-guest-card__edit"
+                        href="<?= $escapeAttr($editUrl) ?>">
+                        <?= $escape($translate('Edit')) ?>
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if ($canDelete): ?>
+                <li>
+                    <a class="o-icon-delete button delete-button remove-contribution contribute-enhancements-guest-card__delete"
+                        data-contribution-id="<?= $contribution->id() ?>"
+                        data-contribution-url="<?= $escapeAttr($contribution->siteUrl($siteSlug, false, 'delete', true)) ?>"
+                        data-redirect-url="<?= $escapeAttr($url('site/guest/contribution', ['action' => 'browse'], true)) ?>"
+                        href="#">
+                        <?= $escape($translate('Delete')) ?>
+                    </a>
+                </li>
+                <?php endif; ?>
+            </ul>
+            <?php endif; ?>
+        </div>
+    </li>
+    <?php endforeach; ?>
+</ul>
+<?php $this->trigger('view.browse.after'); ?>
+
+<?php else: ?>
+<p class="noresults">
+    <?= $escape($this->params()->fromQuery('contribute_enhancements_archived') === '1'
+        ? $translate('There are no archived contributions.')
+        : $translate('There are no contributions.')) ?>
+</p>
+<?php endif; ?>
+
+<div class="contribute-enhancements-guest-contribute-link">
+    <?= $contributionLink() ?>
+</div>
