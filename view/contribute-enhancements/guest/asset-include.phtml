@@ -16,7 +16,8 @@ const confirmFormCsrf = ' . json_encode($site->getServiceLocator()->get('FormEle
 if (empty($this->vars()->offsetGet('skipContributeCss'))) {
     $this->headLink()
         ->appendStylesheet($assetUrl('css/contribute.css', 'Contribute'))
-        ->appendStylesheet($assetUrl('css/common-dialog.css', 'Common'));
+        ->appendStylesheet($assetUrl('css/common-dialog.css', 'Common'))
+        ->appendStylesheet($assetUrl('css/contribute-enhancements-site.css', 'ContributeEnhancements'));
 }
 
 $this->headScript()

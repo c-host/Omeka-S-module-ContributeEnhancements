@@ -17,6 +17,10 @@
     gap: 0.5rem;
 }
 
+.contribute-enhancements-guest-archive-filter + .noresults {
+    margin-top: 0;
+}
+
 .contribute-enhancements-guest-archive-filter .button.active {
     font-weight: 700;
 }
